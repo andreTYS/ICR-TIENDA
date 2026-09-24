@@ -38,14 +38,16 @@ docker compose up -d --build
 | Variable | Uso |
 |---|---|
 | `DOMAIN` | Dominio público que Traefik enruta hacia el contenedor (solo se usa en `docker-compose.yml`, no dentro de la app) |
-| `ERP_API_URL` | Base URL de la API del ERP (ICR-LOGISTICA), p. ej. `https://erp.icrinversiones.pe/api`. Opcional: sin ella la tienda muestra el catálogo estático de ejemplo. |
-| `ERP_API_TOKEN` | Token de servicio emitido desde el ERP (Administración → Tokens de servicio), "actuando como" un usuario con rol VENTAS. Server-side únicamente, nunca llega al navegador. |
+| `ERP_API_URL` | Base URL de la API del ERP (ICR-LOGISTICA). Ya viene con el valor real por defecto en `docker-compose.yml`/`docker-compose.local.yml` (`https://erp.inversionesicr.com/api`); solo hace falta sobreescribirla si el ERP se muda de dominio. |
+| `ERP_API_TOKEN` | Token de servicio emitido desde el ERP (Administración → Tokens de servicio), "actuando como" un usuario con rol VENTAS. Server-side únicamente, nunca llega al navegador. **Obligatorio** para que la tienda quede conectada — sin él, aunque `ERP_API_URL` ya apunte al ERP real, la tienda sigue cayendo al catálogo estático de ejemplo. |
 
 ## Conectar la tienda al ERP real
 
-1. En el ERP (ICR-LOGISTICA), crear o reutilizar un usuario con rol **VENTAS**.
-2. En **Administración → Tokens de servicio**, emitir un token "actuando como" ese usuario.
-3. En el `.env` de la tienda, completar `ERP_API_URL` (URL pública de la API del ERP) y `ERP_API_TOKEN` con ese token.
+`ERP_API_URL` ya apunta a `https://erp.inversionesicr.com/api` por defecto — lo único que falta es el token:
+
+1. En el ERP (`erp.inversionesicr.com`), entrar como Admin → **Administración → Tokens de servicio**.
+2. Crear o reutilizar un usuario con rol **VENTAS**, y emitir un token "actuando como" ese usuario.
+3. En el `.env` de la tienda (en el VPS), completar `ERP_API_TOKEN` con ese token.
 4. Reiniciar el contenedor (`docker compose up -d --build`).
 
 Con eso, `/catalogo` y las fichas de producto pasan a mostrar precio (`precio_venta`) y stock reales del
