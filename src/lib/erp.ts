@@ -34,6 +34,7 @@ export interface ErpProducto {
   unidad_medida: string
   costo_unitario: number | string | null
   precio_venta: number | string | null
+  categoria: string | null
   imagen_url: string | null
 }
 
