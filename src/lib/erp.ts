@@ -9,6 +9,20 @@ function isConfigured(): boolean {
   return !!process.env.ERP_API_URL && !!process.env.ERP_API_TOKEN
 }
 
+// El ERP devuelve imagen_url como ruta relativa (ej. "/uploads/xxx.jpg"),
+// pensada para servirse desde su propio dominio (ver backend/src/uploads.js
+// en ICR-LOGISTICA) — nunca una URL absoluta. Si se usara tal cual en un
+// <img src>, el navegador la resuelve contra el dominio de la TIENDA, no el
+// del ERP, y la imagen sale rota. Se arma la URL absoluta contra el origen
+// real del ERP (mismo host que ERP_API_URL, sin el sufijo /api).
+function erpImageUrl(imagenUrl: string | null): string | null {
+  if (!imagenUrl) return null
+  if (/^https?:\/\//i.test(imagenUrl)) return imagenUrl
+  const apiUrl = process.env.ERP_API_URL
+  if (!apiUrl) return null
+  return new URL(imagenUrl, new URL(apiUrl).origin).toString()
+}
+
 async function erpFetch(path: string, init?: RequestInit): Promise<Response> {
   const baseUrl = (process.env.ERP_API_URL || '').replace(/\/+$/, '')
   return fetch(`${baseUrl}${path}`, {
@@ -109,4 +123,4 @@ export async function crearLeadDesdeWeb(solicitud: SolicitudCotizacion): Promise
   return { codigo: body.data.lead.codigo }
 }
 
-export { isConfigured as erpConfigured }
+export { isConfigured as erpConfigured, erpImageUrl }

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { fetchErpCatalogo, erpConfigured, type ErpProducto } from '@/lib/erp'
+import { fetchErpCatalogo, erpConfigured, erpImageUrl, type ErpProducto } from '@/lib/erp'
 import type { Producto } from '@/data/products'
 
 // El ERP ya tiene un campo de categoría de negocio real (ver
@@ -35,7 +35,7 @@ function mapearProducto(p: ErpProducto, stockDisponible: number): Producto {
       ['Unidad', p.unidad_medida],
     ] as [string, string][],
     soluciones: [],
-    imagen: p.imagen_url || null,
+    imagen: erpImageUrl(p.imagen_url),
     precioIndefinido: precioVenta == null,
   }
 }
