@@ -1,0 +1,31 @@
+services:
+  tienda:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: icr-tienda:latest
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - ERP_API_URL=${ERP_API_URL:-}
+      - ERP_API_TOKEN=${ERP_API_TOKEN:-}
+    networks:
+      - traefik_public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_public"
+      # HTTP -> HTTPS redirect
+      - "traefik.http.routers.icr-tienda-http.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.icr-tienda-http.entrypoints=web"
+      - "traefik.http.routers.icr-tienda-http.middlewares=icr-tienda-https-redirect"
+      - "traefik.http.middlewares.icr-tienda-https-redirect.redirectscheme.scheme=https"
+      # HTTPS with Let's Encrypt
+      - "traefik.http.routers.icr-tienda.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.icr-tienda.entrypoints=websecure"
+      - "traefik.http.routers.icr-tienda.tls=true"
+      - "traefik.http.routers.icr-tienda.tls.certresolver=letsencrypt"
+      - "traefik.http.services.icr-tienda.loadbalancer.server.port=3000"
+
+networks:
+  traefik_public:
+    external: true
