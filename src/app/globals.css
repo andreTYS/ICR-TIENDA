@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Barlow", system-ui, sans-serif;
+  --font-heading: "Barlow Condensed", system-ui, sans-serif;
+
+  --color-ink: #00004c;
+  --color-accent: #00b7c2;
+  --color-accent-2: #00ffc2;
+  --color-accent-dark: #000073;
+  --color-surface: #f2f5f7;
+  --color-bg: #e7eaee;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  margin: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+.kicker {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}

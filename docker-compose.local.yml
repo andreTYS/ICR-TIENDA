@@ -1,0 +1,15 @@
+# Uso local/pruebas, sin Traefik: expone el contenedor directo en el puerto 3000.
+# docker compose -f docker-compose.local.yml up --build
+services:
+  tienda:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: icr-tienda:latest
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - ERP_API_URL=${ERP_API_URL:-}
+      - ERP_API_TOKEN=${ERP_API_TOKEN:-}
+    ports:
+      - "3000:3000"

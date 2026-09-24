@@ -1,0 +1,15 @@
+{
+  "name": "productos-icr-demo",
+  "version": "1.0.0",
+  "description": "Demo local: agregar productos con imagen y guardarlos en PostgreSQL",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.22.2",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.23.0"
+  }
+}
