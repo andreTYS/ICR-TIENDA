@@ -20,15 +20,17 @@ Abre http://localhost:3000
 Compose + Traefik como reverse proxy con TLS automático (Let's Encrypt), enrutando por subdominio
 con `Host()`.
 
-Asume que en el VPS ya existe una red externa de Docker donde corre el Traefik compartido, y que
-ese Traefik tiene configurado un `certresolver` llamado `letsencrypt` y los entrypoints `web`
-(puerto 80) y `websecure` (puerto 443). Si el nombre de la red externa o del certresolver en tu
-Traefik real es distinto, ajusta `docker-compose.yml` (`networks.traefik_public.name` y las labels
-`traefik.*`) antes de desplegar.
+Asume que en el VPS ya existe una red externa de Docker donde corre el Traefik compartido — en este
+VPS, ese Traefik está unido a la red por defecto de N8N (`n8n_default`), no a una red separada
+llamada "traefik_public"; `docker-compose.yml` ya la referencia con ese nombre real (mismo patrón
+que usa `ICR-LOGISTICA`). Asume también que ese Traefik tiene configurado un `certresolver` llamado
+`letsencrypt` y los entrypoints `web` (puerto 80) y `websecure` (puerto 443). Si el nombre de la red
+externa o del certresolver en tu Traefik real cambia, ajusta `docker-compose.yml`
+(`networks.traefik_public.name` y las labels `traefik.*`) antes de desplegar.
 
 ```bash
 cp .env.example .env
-# editar .env y poner el dominio real, p. ej. DOMAIN=tienda.icrinversiones.pe
+# editar .env y poner el dominio real, p. ej. DOMAIN=tienda.icrinversiones.com
 
 docker compose up -d --build
 ```

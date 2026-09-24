@@ -27,5 +27,9 @@ services:
       - "traefik.http.services.icr-tienda.loadbalancer.server.port=3000"
 
 networks:
+  # Misma red compartida de Traefik que ya usa el ERP (ICR-LOGISTICA) en este
+  # VPS — ahí Traefik corre unido a la red por defecto de N8N (n8n_default),
+  # no a una red "traefik_public" separada. Ver docker-compose.yml del ERP.
   traefik_public:
+    name: n8n_default
     external: true
