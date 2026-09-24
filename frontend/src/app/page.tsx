@@ -4,7 +4,7 @@ import HeroBannerSlide from '@/components/HeroBannerSlide'
 import PromoSlide, { type PromoSlideData } from '@/components/PromoSlide'
 import ProductCard from '@/components/ProductCard'
 import Container from '@/components/Container'
-import { PRODUCTOS } from '@/data/products'
+import { api, type Portada } from '@/lib/api'
 import almacen from '@/assets/almacen.jpg'
 import tablero from '@/assets/tablero.jpg'
 
@@ -14,7 +14,7 @@ const OTHER_SLIDES: PromoSlideData[] = [
     title: 'Baterías con hasta',
     highlight: '10 años de garantía',
     desc: 'Bancos LiFePO4 para respaldo de cargas críticas ante cortes de red.',
-    cta: { label: 'Ver baterías', to: '/catalogo?cat=Batería' },
+    cta: { label: 'Ver baterías', to: '/catalogo?cat=BATERIAS' },
     bg: `url(${almacen.src})`,
   },
   {
@@ -27,9 +27,17 @@ const OTHER_SLIDES: PromoSlideData[] = [
   },
 ]
 
-export default function Home() {
-  const destacados = PRODUCTOS.filter((p) => p.destacado).slice(0, 3)
-  const masVendidos = [...PRODUCTOS].sort((a, b) => (b.vendidos ?? 0) - (a.vendidos ?? 0)).slice(0, 3)
+// Se arma en cada visita con los datos de la base y el stock/ventas del ERP
+export const dynamic = 'force-dynamic'
+
+export default async function Home() {
+  let portada: Portada = { destacados: [], masVendidos: [], fuenteMasVendidos: 'catalogo' }
+  try {
+    portada = await api.portada(3)
+  } catch (err) {
+    console.error('No se pudo cargar la portada desde la API:', err)
+  }
+  const { destacados, masVendidos } = portada
 
   return (
     <div>
@@ -78,7 +86,7 @@ export default function Home() {
               </h2>
             </div>
             <span className="text-xs font-medium tracking-[.1em] uppercase text-ink/45">
-              Según pedidos de los últimos 12 meses
+              {portada.fuenteMasVendidos === 'erp' ? 'Según ventas de los últimos 12 meses' : 'Líneas más solicitadas'}
             </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

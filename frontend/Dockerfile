@@ -12,6 +12,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# URL interna del backend (red de Docker); ver next.config.ts
+ARG API_INTERNAL_URL=http://backend:4000
+ENV API_INTERNAL_URL=$API_INTERNAL_URL
 RUN npm run build
 
 # ---- runner: minimal production image ----
@@ -21,6 +24,8 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+ARG API_INTERNAL_URL=http://backend:4000
+ENV API_INTERNAL_URL=$API_INTERNAL_URL
 
 RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs

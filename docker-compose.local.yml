@@ -31,13 +31,23 @@ services:
       PGUSER: postgres
       PGPASSWORD: postgres
       PORT: 4000
+      # Opcional: probar contra el ERP real o uno local
+      ERP_API_URL: ${ERP_API_URL:-https://erp.inversionesicr.com/api}
+      ERP_API_TOKEN: ${ERP_API_TOKEN:-}
     volumes:
       - uploads_local:/app/uploads
     ports:
       - "4000:4000"
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        API_INTERNAL_URL: http://backend:4000
+    environment:
+      - API_INTERNAL_URL=http://backend:4000
+    depends_on:
+      - backend
     ports:
       - "3000:3000"
 

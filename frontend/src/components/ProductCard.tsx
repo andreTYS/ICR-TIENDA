@@ -1,12 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { money, type Producto } from '../data/products'
+import { money, stockLabel, titleCase, type Producto } from '../data/products'
 import { useQuote } from '../context/QuoteContext'
+import ProductImage from './ProductImage'
 
 export default function ProductCard({ p, size = 'default' }: { p: Producto; size?: 'default' | 'large' }) {
   const { add } = useQuote()
   const large = size === 'large'
+  const stock = stockLabel(p)
+  const stockColor = stock.tono === 'ok' ? 'text-emerald-700' : 'text-ink/45'
 
   return (
     <div
@@ -17,32 +20,24 @@ export default function ProductCard({ p, size = 'default' }: { p: Producto; size
       <Link
         href={`/producto/${p.id}`}
         className={`relative bg-surface flex items-center justify-center border-b border-ink/10 ${
-          large ? 'h-56' : 'h-40'
+          large ? 'h-56 p-6 pt-10' : 'h-40 p-4 pt-8'
         }`}
       >
-        <div
-          className={`font-medium tracking-[.14em] uppercase text-ink/30 text-center leading-relaxed ${
-            large ? 'text-xs' : 'text-[10px]'
-          }`}
-        >
-          Imagen de
-          <br />
-          producto
-        </div>
+        <ProductImage src={p.imagen_url} alt={p.nombre} />
         <div
           className={`absolute left-0 top-0 bg-ink text-white font-bold tracking-[.1em] uppercase ${
             large ? 'text-xs px-3 py-2' : 'text-[9.5px] px-2.5 py-[5px]'
           }`}
         >
-          {p.cat}
+          {titleCase(p.categoria_producto)}
         </div>
-        {p.b2b && (
+        {p.destacado && (
           <div
             className={`absolute right-0 top-0 bg-accent text-ink font-black tracking-[.1em] uppercase ${
               large ? 'text-xs px-3 py-2' : 'text-[9.5px] px-2.5 py-[5px]'
             }`}
           >
-            Industrial
+            Destacado
           </div>
         )}
       </Link>
@@ -52,27 +47,30 @@ export default function ProductCard({ p, size = 'default' }: { p: Producto; size
             large ? 'text-sm mb-2' : 'text-[10.5px] mb-1.5'
           }`}
         >
-          {p.marca}
+          {p.marca || titleCase(p.categoria_producto)}
         </div>
         <Link
           href={`/producto/${p.id}`}
           className={`font-bold leading-tight text-ink hover:text-accent-dark transition-colors ${
             large ? 'text-xl mb-3 min-h-[58px]' : 'text-[13.5px] mb-2.5 min-h-[52px]'
-          }`}
+          } line-clamp-3`}
         >
           {p.nombre}
         </Link>
-        <div className={`text-ink/55 ${large ? 'text-sm mb-4' : 'text-[11px] mb-3'}`}>{p.spec}</div>
+        <div className={`text-ink/55 ${large ? 'text-sm mb-4' : 'text-[11px] mb-3'}`}>
+          {p.referencia_interna ? `Ref. ${p.referencia_interna}` : titleCase(p.unidad_medida)}
+        </div>
         <div className="mt-auto">
           <div className={`font-black tracking-tight ${large ? 'text-[28px] mb-1' : 'text-[17px] mb-0.5'}`}>
-            {money(p.precio)}
+            {money(p.precio_venta ?? 0)}
           </div>
-          <div className={`text-ink/45 ${large ? 'text-xs mb-4' : 'text-[10.5px] mb-3'}`}>
-            IGV incluido · {p.stock}
+          <div className={`${large ? 'text-xs mb-4' : 'text-[10.5px] mb-3'}`}>
+            <span className="text-ink/45">IGV incluido · </span>
+            <span className={stockColor}>{stock.texto}</span>
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => add(p.id)}
+              onClick={() => add(p)}
               className={`flex-1 border-0 bg-ink text-white font-heading font-bold tracking-[.08em] uppercase hover:bg-accent-dark transition-colors ${
                 large ? 'text-sm px-3 py-3.5' : 'text-[10.5px] px-2 py-[11px]'
               }`}

@@ -3,25 +3,47 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useQuote } from '@/context/QuoteContext'
+import { api } from '@/lib/api'
 import Container from '@/components/Container'
 
 const CAMPOS = [
-  { key: 'empresa', label: 'Empresa o nombre', ph: 'Inversiones ejemplo S.A.C.' },
-  { key: 'contacto', label: 'Contacto', ph: 'Nombre y cargo' },
-  { key: 'correo', label: 'Correo corporativo', ph: 'nombre@empresa.com' },
-  { key: 'ciudad', label: 'Ciudad del proyecto', ph: 'Arequipa' },
-  { key: 'consumo', label: 'Consumo mensual (kWh)', ph: '3.200' },
+  { key: 'empresa', label: 'Empresa o nombre', ph: 'Inversiones ejemplo S.A.C.', required: false, type: 'text' },
+  { key: 'contacto', label: 'Contacto', ph: 'Nombre y cargo', required: true, type: 'text' },
+  { key: 'correo', label: 'Correo', ph: 'nombre@empresa.com', required: true, type: 'email' },
+  { key: 'telefono', label: 'Teléfono / WhatsApp', ph: '+51 999 999 999', required: true, type: 'tel' },
+  { key: 'ciudad', label: 'Ciudad del proyecto', ph: 'Arequipa', required: false, type: 'text' },
+  { key: 'consumo', label: 'Consumo mensual (kWh)', ph: '3.200 (opcional)', required: false, type: 'text' },
 ] as const
 
 export default function Cotizacion() {
-  const { rows, totalMoney, bump } = useQuote()
+  const { rows, totalMoney, bump, clear } = useQuote()
   const [form, setForm] = useState<Record<string, string>>({})
   const [tipoCliente, setTipoCliente] = useState<'empresa' | 'hogar'>('empresa')
-  const [enviado, setEnviado] = useState(false)
+  const [enviado, setEnviado] = useState<string | null>(null)
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setEnviado(true)
+    if (rows.length === 0) {
+      setError('Agrega al menos un producto desde el catálogo.')
+      return
+    }
+    setEnviando(true)
+    setError(null)
+    try {
+      const r = await api.cotizar({
+        ...form,
+        tipo_cliente: tipoCliente,
+        items: rows.map((r) => ({ id: r.id, qty: r.qty })),
+      })
+      setEnviado(r.codigo)
+      clear()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo enviar la solicitud')
+    } finally {
+      setEnviando(false)
+    }
   }
 
   return (
@@ -73,7 +95,7 @@ export default function Cotizacion() {
                     +
                   </button>
                 </div>
-                <div className="w-[120px] text-right text-sm font-black">{r.total}</div>
+                <div className="w-[120px] text-right text-sm font-black">{r.subtotal}</div>
               </div>
             ))}
             {rows.length === 0 && (
@@ -108,6 +130,9 @@ export default function Cotizacion() {
               <div className="text-accent-dark font-heading font-black text-lg uppercase mb-2">
                 Solicitud enviada
               </div>
+              <div className="text-[12px] font-bold tracking-[.1em] uppercase text-ink/60 mb-3">
+                N.º de solicitud: <span className="text-ink">{enviado}</span>
+              </div>
               <p className="text-[13px] text-ink/65">
                 Un ingeniero de ICR revisa tu solicitud y responde con dimensionamiento y disponibilidad en 24
                 horas hábiles.
@@ -125,7 +150,8 @@ export default function Cotizacion() {
                       {c.label}
                     </div>
                     <input
-                      required
+                      required={c.required}
+                      type={c.type}
                       value={form[c.key] ?? ''}
                       onChange={(e) => setForm((f) => ({ ...f, [c.key]: e.target.value }))}
                       placeholder={c.ph}
@@ -152,11 +178,13 @@ export default function Cotizacion() {
                     ))}
                   </div>
                 </div>
+                {error && <div className="text-[12px] text-red-700 font-medium">{error}</div>}
                 <button
                   type="submit"
-                  className="border-0 bg-accent text-ink font-heading text-xs font-black tracking-[.1em] uppercase px-4 py-4 mt-1 hover:bg-accent-2 transition-colors"
+                  disabled={enviando}
+                  className="border-0 bg-accent text-ink font-heading text-xs font-black tracking-[.1em] uppercase px-4 py-4 mt-1 hover:bg-accent-2 transition-colors disabled:opacity-60"
                 >
-                  Enviar solicitud
+                  {enviando ? 'Enviando…' : 'Enviar solicitud'}
                 </button>
                 <div className="text-[11px] text-ink/50 leading-relaxed">
                   Un ingeniero de ICR revisa la solicitud y responde con dimensionamiento y disponibilidad.

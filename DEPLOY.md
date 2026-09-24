@@ -1,40 +1,82 @@
-# Despliegue en el VPS
+# Despliegue en el VPS — tienda.inversionesicr.com
 
-Todo corre con Docker Compose detrás del Traefik compartido del VPS (mismo patrón que ICR Almacén):
-red externa `traefik_public`, entrypoints `web`/`websecure` y certresolver `letsencrypt`.
-Si en tu Traefik se llaman distinto, ajusta `docker-compose.yml`.
+La tienda corre con Docker Compose en el mismo VPS que la web (`inversionesicr.com`) y el ERP
+(`erp.inversionesicr.com`), detrás del **mismo Traefik compartido**: contenedor `n8n-traefik-1`,
+red `n8n_default`, certresolver `mytlschallenge`. El SSL no se configura aparte: Traefik pide el
+certificado de Let's Encrypt solo, en el primer request HTTPS, siempre que el DNS ya apunte al VPS.
 
-Servicios:
-
-- `db` — PostgreSQL 16. Volumen `db_data`. La primera vez ejecuta `db/init/*.sql` (carga los productos).
-- `backend` — API Express en el puerto 4000. Volumen `uploads` (la primera vez se llena con las imágenes del repo).
-  Traefik le manda `/api`, `/uploads` y `/admin`.
-- `frontend` — Next.js standalone en el puerto 3000. Traefik le manda todo lo demás.
+| Servicio | Qué es | Rutas |
+|---|---|---|
+| `frontend` | Tienda Next.js | todo lo demás |
+| `backend` | API Express + panel admin | `/api`, `/uploads`, `/admin` |
+| `db` | PostgreSQL 16 (productos y solicitudes) | solo red interna |
 
 ## 1. DNS
 
-Crea un registro `A` del dominio (p. ej. `tienda.inversiones.icr`) apuntando a la IP del VPS.
+En el panel del dominio `inversionesicr.com` crea un registro:
 
-## 2. Levantar
+| Tipo | Nombre | Valor |
+|---|---|---|
+| A | `tienda` | la IP del VPS (la misma a la que apunta `erp`) |
+
+Comprobar: `getent hosts tienda.inversionesicr.com` debe devolver la IP del VPS.
+
+## 2. Token del ERP (para stock, CRM y ventas)
+
+En `https://erp.inversionesicr.com` como ADMIN:
+
+1. *Administración → Usuarios*: crea un usuario **“Tienda web”** con rol **VENTAS**
+   (tiene justo los permisos que usa la tienda: `inventory.stock.get`, `crm.manage`, `store.query`).
+2. *Administración → Tokens de servicio*: crea un token que actúe como ese usuario.
+   Copia el valor (empieza con `icr_`, se muestra una sola vez) en `ERP_API_TOKEN` del `.env`.
+
+Qué hace la tienda con el ERP:
+
+- **Stock**: cada producto muestra el stock disponible del ERP (suma de almacenes), cruzando
+  `referencia_interna` de la tienda con el `sku` del ERP (o por nombre). Caché de 2 minutos.
+- **Solicitudes de cotización**: se guardan en la base de la tienda (`WEB-00001`…) y se crean como
+  **lead en CRM** del ERP (origen WEB, monto estimado y detalle de productos en notas). Si el ERP no
+  responde, se reintenta sola cada 10 min o con “Reenviar” en `/admin`.
+- **Más vendidos** de la portada: según las ventas de *Tienda* registradas en el ERP (12 meses).
+
+Sin token la tienda funciona igual (stock “Consultar disponibilidad”, solicitudes quedan en `/admin`).
+
+> Opcional: como la tienda y el ERP están en la misma red `n8n_default`, se puede usar
+> `ERP_API_URL=http://icr_almacen_backend:4000/api` para no salir a internet.
+
+## 3. Levantar
 
 ```bash
-git clone https://github.com/andreTYS/ICR-TIENDA.git
-cd ICR-TIENDA
+cd /opt
+git clone https://github.com/andreTYS/ICR-TIENDA.git icr-tienda
+cd icr-tienda
 cp .env.example .env
-nano .env        # DOMAIN, POSTGRES_PASSWORD, ADMIN_PASSWORD
-docker compose up -d --build
-docker compose logs -f
+nano .env          # POSTGRES_PASSWORD, ADMIN_PASSWORD, ERP_API_TOKEN
+./deploy.sh
 ```
 
-## 3. Actualizar
+`deploy.sh` verifica la red y el certresolver de Traefik, el DNS, levanta los contenedores y al final
+prueba `https://tienda.inversionesicr.com` (certificado) y la conexión con el ERP.
+
+## 4. Actualizar
 
 ```bash
-git pull
-docker compose up -d --build
+cd /opt/icr-tienda && git pull && ./deploy.sh
 ```
 
-La base y las imágenes subidas viven en volúmenes, no se pierden al reconstruir.
-Los `.sql` de `db/init/` **no** se vuelven a ejecutar si el volumen `db_data` ya existe.
+La base, las imágenes subidas y las solicitudes viven en volúmenes: no se pierden al reconstruir.
+Los `.sql` de `db/init/` solo se ejecutan la primera vez (volumen `db_data` vacío).
+
+## Si el SSL no sale
+
+```bash
+docker logs n8n-traefik-1 2>&1 | grep -i -E "acme|tienda" | tail -20
+docker inspect n8n-traefik-1 --format '{{json .Config.Cmd}}' | tr ',' '\n' | grep -i resolvers
+```
+
+- `NXDOMAIN` / `no valid A records`: falta el registro DNS del paso 1.
+- Otro nombre de resolver: ponlo en `TRAEFIK_CERTRESOLVER` del `.env` y corre `./deploy.sh`.
+- Let's Encrypt limita 5 intentos fallidos por hora: corrige y espera antes de reintentar.
 
 ## Respaldo
 
@@ -43,13 +85,10 @@ docker compose exec db pg_dump -U postgres productos_icr > backup_$(date +%F).sq
 docker run --rm -v icr-tienda_uploads:/u -v "$PWD":/b alpine tar czf /b/uploads_$(date +%F).tgz -C /u .
 ```
 
-(El nombre real del volumen lo ves con `docker volume ls`.)
-
 ## Pruebas locales (sin Traefik)
 
 ```bash
 docker compose -f docker-compose.local.yml up --build
 ```
 
-- Tienda: http://localhost:3000
-- Admin/API: http://localhost:4000/admin/ (sin contraseña en local)
+Tienda en http://localhost:3000 · Admin/API en http://localhost:4000/admin/ (sin contraseña en local).

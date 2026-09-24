@@ -1,4 +1,8 @@
-# Producción en el VPS: Traefik compartido (red externa traefik_public, certresolver letsencrypt).
+# Producción en el VPS (Hostinger), detrás del Traefik compartido que ya
+# sirve inversionesicr.com y erp.inversionesicr.com: contenedor n8n-traefik-1,
+# red n8n_default, certresolver mytlschallenge (Let's Encrypt TLS challenge).
+# El certificado de ${DOMAIN} lo emite Traefik solo, en el primer request HTTPS.
+#
 #   https://${DOMAIN}/            -> frontend (Next.js)
 #   https://${DOMAIN}/api/...     -> backend (Express + PostgreSQL)
 #   https://${DOMAIN}/uploads/... -> backend (imágenes de productos)
@@ -39,6 +43,9 @@ services:
       PORT: 4000
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Define ADMIN_PASSWORD en .env}
+      # Integración con el ERP (erp.inversionesicr.com): stock, leads de CRM y ventas
+      ERP_API_URL: ${ERP_API_URL:-https://erp.inversionesicr.com/api}
+      ERP_API_TOKEN: ${ERP_API_TOKEN:-}
     volumes:
       - uploads:/app/uploads
     networks:
@@ -46,25 +53,33 @@ services:
       - traefik_public
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=traefik_public"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-n8n_default}"
       - "traefik.http.routers.icr-tienda-api.rule=Host(`${DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/uploads`) || PathPrefix(`/admin`))"
       - "traefik.http.routers.icr-tienda-api.entrypoints=websecure"
       - "traefik.http.routers.icr-tienda-api.tls=true"
-      - "traefik.http.routers.icr-tienda-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.icr-tienda-api.tls.certresolver=${TRAEFIK_CERTRESOLVER:-mytlschallenge}"
       - "traefik.http.routers.icr-tienda-api.priority=100"
       - "traefik.http.services.icr-tienda-api.loadbalancer.server.port=4000"
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        API_INTERNAL_URL: http://backend:4000
     image: icr-tienda-frontend:latest
     restart: unless-stopped
+    depends_on:
+      - backend
     environment:
       - NODE_ENV=production
+      # La portada se arma en el servidor llamando al backend por la red interna
+      - API_INTERNAL_URL=http://backend:4000
     networks:
+      - internal
       - traefik_public
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=traefik_public"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-n8n_default}"
       # HTTP -> HTTPS
       - "traefik.http.routers.icr-tienda-http.rule=Host(`${DOMAIN}`)"
       - "traefik.http.routers.icr-tienda-http.entrypoints=web"
@@ -74,7 +89,7 @@ services:
       - "traefik.http.routers.icr-tienda.rule=Host(`${DOMAIN}`)"
       - "traefik.http.routers.icr-tienda.entrypoints=websecure"
       - "traefik.http.routers.icr-tienda.tls=true"
-      - "traefik.http.routers.icr-tienda.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.icr-tienda.tls.certresolver=${TRAEFIK_CERTRESOLVER:-mytlschallenge}"
       - "traefik.http.routers.icr-tienda.priority=10"
       - "traefik.http.services.icr-tienda.loadbalancer.server.port=3000"
 
@@ -85,4 +100,6 @@ volumes:
 networks:
   internal:
   traefik_public:
+    # Red del Traefik compartido del VPS (la del stack de n8n). No la crea este compose.
     external: true
+    name: ${TRAEFIK_NETWORK:-n8n_default}

@@ -9,11 +9,11 @@ const FOOTER_COLS: { titulo: string; links: { label: string; to: string; externa
   {
     titulo: 'Catálogo',
     links: [
-      { label: 'Inversores', to: '/catalogo?cat=Inversor' },
-      { label: 'Baterías', to: '/catalogo?cat=Batería' },
-      { label: 'Paneles solares', to: '/catalogo?cat=Panel solar' },
-      { label: 'Estructura', to: '/catalogo?cat=Estructura' },
-      { label: 'Accesorios', to: '/catalogo?cat=Accesorios' },
+      { label: 'Inversores', to: '/catalogo?cat=INVERSORES,INVERSORES HIBRIDOS,INVERSORES DE RED,MICROINVERSOR' },
+      { label: 'Baterías', to: '/catalogo?cat=BATERIAS' },
+      { label: 'Paneles solares', to: '/catalogo?cat=PANELES' },
+      { label: 'Estructura', to: '/catalogo?cat=ESTRUCTURA' },
+      { label: 'Accesorios', to: '/catalogo?cat=ACC Y ASIST.,MATERIALES PARA INSTALACION,CABLES PARA PANEL SOLAR' },
     ],
   },
   {

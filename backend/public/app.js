@@ -46,6 +46,11 @@ dropzone.addEventListener('drop', (e) => {
   }
 });
 
+// Todo lo que viene de la base se escapa: las solicitudes llegan de un formulario público
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 function money(n) {
   if (n === null || n === undefined || n === '') return '';
   return 'S/ ' + Number(n).toFixed(2);
@@ -78,18 +83,35 @@ async function loadProducts(page = 1) {
 
   grid.innerHTML = productos
     .map((p) => `
-      <div class="card">
+      <div class="card ${p.publicado ? '' : 'oculto'}">
         <div class="thumb">
-          ${p.imagen_url ? `<img src="${p.imagen_url}" alt="${p.nombre}" loading="lazy" />` : '<span class="no-img">Sin imagen</span>'}
+          ${p.imagen_url ? `<img src="${esc(p.imagen_url)}" alt="${esc(p.nombre)}" loading="lazy" />` : '<span class="no-img">Sin imagen</span>'}
+          <div class="actions">
+            <button class="act ${p.destacado ? 'on' : ''}" title="Destacar en portada" data-id="${p.id}" data-campo="destacado" data-valor="${!p.destacado}">★</button>
+            <button class="act ${p.publicado ? '' : 'on'}" title="${p.publicado ? 'Ocultar de la tienda' : 'Mostrar en la tienda'}" data-id="${p.id}" data-campo="publicado" data-valor="${!p.publicado}">👁</button>
+          </div>
         </div>
         <div class="body">
-          <p class="name">${p.nombre}</p>
-          <p class="meta">${p.categoria_producto || 'Sin categoría'}${p.referencia_interna ? ' · ' + p.referencia_interna : ''}</p>
+          <p class="name">${esc(p.nombre)}</p>
+          <p class="meta">${esc(p.categoria_producto || 'Sin categoría')}${p.referencia_interna ? ' · ' + esc(p.referencia_interna) : ''}</p>
           ${p.precio_venta ? `<p class="price">${money(p.precio_venta)}</p>` : ''}
+          <p class="stock">${p.stock_erp == null ? 'Sin dato en ERP' : `Stock ERP: ${p.stock_erp}`}${p.publicado ? '' : ' · Oculto'}</p>
         </div>
       </div>
     `)
     .join('');
+
+  grid.querySelectorAll('.act').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      await fetch(`/api/productos/${btn.dataset.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [btn.dataset.campo]: btn.dataset.valor === 'true' }),
+      });
+      loadProducts(currentPage);
+    });
+  });
 
   renderPagination(currentPage, totalPages);
 }
@@ -148,7 +170,76 @@ form.addEventListener('submit', async (e) => {
     dzPreview.hidden = true;
     dzEmpty.hidden = false;
 
-    loadProducts();
+    // ---------- Pestañas ----------
+document.querySelectorAll('.tab').forEach((t) => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === t));
+    document.getElementById('tab-catalogo').hidden = t.dataset.tab !== 'catalogo';
+    document.getElementById('tab-solicitudes').hidden = t.dataset.tab !== 'solicitudes';
+    if (t.dataset.tab === 'solicitudes') loadSolicitudes();
+  });
+});
+
+// ---------- Estado del ERP ----------
+async function loadErp() {
+  const el = document.getElementById('erp-status');
+  try {
+    const s = await (await fetch('/api/admin/erp')).json();
+    if (!s.configurado) {
+      el.className = 'erp-status warn';
+      el.textContent = 'ERP no configurado: define ERP_API_TOKEN en el .env del VPS para ver stock y enviar leads.';
+    } else if (!s.conectado) {
+      el.className = 'erp-status err';
+      el.textContent = `ERP sin conexión (${s.url}): ${s.error}`;
+    } else {
+      el.className = 'erp-status ok';
+      el.innerHTML = `ERP conectado · ${esc(s.url)} · usuario <b>${esc(s.usuario)}</b> (${esc(s.rol)}) · ${s.productos_con_stock} SKU con stock`;
+    }
+  } catch {
+    el.className = 'erp-status err';
+    el.textContent = 'No se pudo consultar el estado del ERP';
+  }
+}
+
+// ---------- Solicitudes de cotización ----------
+async function loadSolicitudes() {
+  const el = document.getElementById('solicitudes');
+  const { solicitudes } = await (await fetch('/api/admin/cotizaciones')).json();
+  const pendientes = solicitudes.filter((s) => !s.erp_lead).length;
+  document.getElementById('sol-badge').textContent = solicitudes.length ? `${solicitudes.length}${pendientes ? ` · ${pendientes} sin ERP` : ''}` : '';
+  if (!solicitudes.length) {
+    el.innerHTML = '<div class="empty-state">Aún no hay solicitudes desde la tienda.</div>';
+    return;
+  }
+  el.innerHTML = solicitudes
+    .map((s) => `
+      <article class="sol">
+        <header>
+          <b>${esc(s.codigo)}</b>
+          <span>${new Date(s.creado_en).toLocaleString('es-PE')}</span>
+          ${s.erp_lead
+            ? `<span class="pill ok">ERP ${esc(s.erp_lead)}</span>`
+            : `<span class="pill err" title="${esc(s.erp_error || 'ERP no configurado')}">Sin enviar al ERP</span>
+               <button class="reenviar" data-id="${s.id}">Reenviar</button>`}
+        </header>
+        <p><b>${esc(s.contacto)}</b>${s.empresa ? ' · ' + esc(s.empresa) : ''} · ${esc(s.correo)}${s.telefono ? ' · ' + esc(s.telefono) : ''}${s.ciudad ? ' · ' + esc(s.ciudad) : ''}</p>
+        <ul>${s.items.map((i) => `<li>${i.cantidad} × ${esc(i.nombre)}${i.referencia ? ` <small>[${esc(i.referencia)}]</small>` : ''} — ${money(i.subtotal)}</li>`).join('')}</ul>
+        <p class="total">Total referencial: ${money(s.total)}</p>
+      </article>`)
+    .join('');
+  el.querySelectorAll('.reenviar').forEach((b) =>
+    b.addEventListener('click', async () => {
+      b.disabled = true;
+      b.textContent = 'Enviando…';
+      await fetch(`/api/admin/cotizaciones/${b.dataset.id}/reenviar`, { method: 'POST' });
+      loadSolicitudes();
+    })
+  );
+}
+
+loadProducts();
+loadErp();
+loadSolicitudes();
   } catch (err) {
     formMsg.textContent = err.message;
     formMsg.className = 'form-msg err';
@@ -157,4 +248,73 @@ form.addEventListener('submit', async (e) => {
   }
 });
 
+// ---------- Pestañas ----------
+document.querySelectorAll('.tab').forEach((t) => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === t));
+    document.getElementById('tab-catalogo').hidden = t.dataset.tab !== 'catalogo';
+    document.getElementById('tab-solicitudes').hidden = t.dataset.tab !== 'solicitudes';
+    if (t.dataset.tab === 'solicitudes') loadSolicitudes();
+  });
+});
+
+// ---------- Estado del ERP ----------
+async function loadErp() {
+  const el = document.getElementById('erp-status');
+  try {
+    const s = await (await fetch('/api/admin/erp')).json();
+    if (!s.configurado) {
+      el.className = 'erp-status warn';
+      el.textContent = 'ERP no configurado: define ERP_API_TOKEN en el .env del VPS para ver stock y enviar leads.';
+    } else if (!s.conectado) {
+      el.className = 'erp-status err';
+      el.textContent = `ERP sin conexión (${s.url}): ${s.error}`;
+    } else {
+      el.className = 'erp-status ok';
+      el.innerHTML = `ERP conectado · ${esc(s.url)} · usuario <b>${esc(s.usuario)}</b> (${esc(s.rol)}) · ${s.productos_con_stock} SKU con stock`;
+    }
+  } catch {
+    el.className = 'erp-status err';
+    el.textContent = 'No se pudo consultar el estado del ERP';
+  }
+}
+
+// ---------- Solicitudes de cotización ----------
+async function loadSolicitudes() {
+  const el = document.getElementById('solicitudes');
+  const { solicitudes } = await (await fetch('/api/admin/cotizaciones')).json();
+  const pendientes = solicitudes.filter((s) => !s.erp_lead).length;
+  document.getElementById('sol-badge').textContent = solicitudes.length ? `${solicitudes.length}${pendientes ? ` · ${pendientes} sin ERP` : ''}` : '';
+  if (!solicitudes.length) {
+    el.innerHTML = '<div class="empty-state">Aún no hay solicitudes desde la tienda.</div>';
+    return;
+  }
+  el.innerHTML = solicitudes
+    .map((s) => `
+      <article class="sol">
+        <header>
+          <b>${esc(s.codigo)}</b>
+          <span>${new Date(s.creado_en).toLocaleString('es-PE')}</span>
+          ${s.erp_lead
+            ? `<span class="pill ok">ERP ${esc(s.erp_lead)}</span>`
+            : `<span class="pill err" title="${esc(s.erp_error || 'ERP no configurado')}">Sin enviar al ERP</span>
+               <button class="reenviar" data-id="${s.id}">Reenviar</button>`}
+        </header>
+        <p><b>${esc(s.contacto)}</b>${s.empresa ? ' · ' + esc(s.empresa) : ''} · ${esc(s.correo)}${s.telefono ? ' · ' + esc(s.telefono) : ''}${s.ciudad ? ' · ' + esc(s.ciudad) : ''}</p>
+        <ul>${s.items.map((i) => `<li>${i.cantidad} × ${esc(i.nombre)}${i.referencia ? ` <small>[${esc(i.referencia)}]</small>` : ''} — ${money(i.subtotal)}</li>`).join('')}</ul>
+        <p class="total">Total referencial: ${money(s.total)}</p>
+      </article>`)
+    .join('');
+  el.querySelectorAll('.reenviar').forEach((b) =>
+    b.addEventListener('click', async () => {
+      b.disabled = true;
+      b.textContent = 'Enviando…';
+      await fetch(`/api/admin/cotizaciones/${b.dataset.id}/reenviar`, { method: 'POST' });
+      loadSolicitudes();
+    })
+  );
+}
+
 loadProducts();
+loadErp();
+loadSolicitudes();

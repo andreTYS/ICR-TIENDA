@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Productos ICR · Alta rápida</title>
+<title>Tienda ICR · Administración</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -13,7 +13,7 @@
         <span class="brand-mark">ICR</span>
         <div>
           <h1>Nuevo producto</h1>
-          <p class="sub">Arrastra una foto y llena los datos. Se guarda directo en PostgreSQL.</p>
+          <p class="sub">Arrastra una foto y llena los datos. Aparece en la tienda al guardar.</p>
         </div>
       </div>
 
@@ -62,20 +62,47 @@
           <input type="text" name="unidad_medida" placeholder="Ej. Unidades" />
         </label>
 
+        <label class="field">
+          <span>Descripción (se muestra en la ficha)</span>
+          <textarea name="descripcion" rows="3" placeholder="Opcional"></textarea>
+        </label>
+
+        <label class="check">
+          <input type="checkbox" name="destacado" /> Mostrar en “Productos destacados” de la portada
+        </label>
+
         <button type="submit" id="submit-btn">Guardar producto</button>
         <p id="form-msg" class="form-msg" role="status"></p>
       </form>
     </aside>
 
     <main class="panel list-panel">
-      <div class="list-header">
-        <h2>Catálogo</h2>
-        <span id="count-badge" class="badge">0 productos</span>
-      </div>
-      <input type="text" id="search" class="search-box" placeholder="Buscar por nombre, referencia o categoría..." />
-      <div id="grid" class="grid"></div>
-      <div id="pagination" class="pagination"></div>
+      <div id="erp-status" class="erp-status">Consultando ERP…</div>
+      <nav class="tabs">
+        <button class="tab active" data-tab="catalogo">Catálogo</button>
+        <button class="tab" data-tab="solicitudes">Solicitudes web <span id="sol-badge" class="badge small"></span></button>
+      </nav>
+
+      <section id="tab-catalogo">
+        <div class="list-header">
+          <h2>Catálogo</h2>
+          <span id="count-badge" class="badge">0 productos</span>
+        </div>
+        <input type="text" id="search" class="search-box" placeholder="Buscar por nombre, referencia o categoría..." />
+        <p class="hint">★ destaca el producto en la portada · 👁 lo oculta/muestra en la tienda · el stock viene del ERP</p>
+        <div id="grid" class="grid"></div>
+        <div id="pagination" class="pagination"></div>
+      </section>
+
+      <section id="tab-solicitudes" hidden>
+        <div class="list-header">
+          <h2>Solicitudes de cotización</h2>
+        </div>
+        <p class="hint">Cada solicitud de la tienda se crea como lead en el CRM del ERP. Si el ERP no respondió, se reintenta sola cada 10 minutos o con “Reenviar”.</p>
+        <div id="solicitudes" class="solicitudes"></div>
+      </section>
     </main>
+  </div>
 
   <script src="app.js"></script>
 </body>
