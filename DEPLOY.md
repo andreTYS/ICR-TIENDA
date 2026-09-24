@@ -30,7 +30,7 @@ externa o del certresolver en tu Traefik real cambia, ajusta `docker-compose.yml
 
 ```bash
 cp .env.example .env
-# editar .env y poner el dominio real, p. ej. DOMAIN=tienda.icrinversiones.com
+# editar .env y poner el dominio real, p. ej. DOMAIN=tienda.inversionesicr.com
 
 docker compose up -d --build
 ```
