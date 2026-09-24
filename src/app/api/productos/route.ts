@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server'
 import { fetchErpCatalogo, erpConfigured, type ErpProducto } from '@/lib/erp'
 import type { Producto } from '@/data/products'
 
-// Sin datos de categoría real en el ERP todavía (el producto solo tiene
-// marca/modelo, no un campo "categoría de negocio"), se infiere por
-// palabras clave del nombre — suficiente para los filtros de la tienda
-// mientras no exista ese campo en el ERP. Ver README para el detalle.
+// El ERP ya tiene un campo de categoría de negocio real (ver
+// inventoryService.setProductCategoria). Se usa cuando viene informado; si un
+// producto todavía no la tiene cargada, se infiere por palabras clave del
+// nombre como respaldo, para que igual caiga en algún filtro de la tienda.
 function inferirCategoria(nombre: string): string {
   const n = nombre.toLowerCase()
   if (n.includes('panel') || n.includes('módulo') || n.includes('modulo')) return 'Panel solar'
@@ -20,7 +20,7 @@ function mapearProducto(p: ErpProducto, stockDisponible: number): Producto {
   return {
     id: p.sku,
     marca: p.marca || 'ICR',
-    cat: inferirCategoria(p.nombre),
+    cat: p.categoria?.trim() || inferirCategoria(p.nombre),
     sku: p.sku,
     nombre: p.nombre,
     spec: [p.modelo, p.unidad_medida].filter(Boolean).join(' · '),
