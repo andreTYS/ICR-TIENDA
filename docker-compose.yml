@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
-      - ERP_API_URL=${ERP_API_URL:-}
+      - ERP_API_URL=${ERP_API_URL:-https://erp.inversionesicr.com/api}
       - ERP_API_TOKEN=${ERP_API_TOKEN:-}
     networks:
       - traefik_public
