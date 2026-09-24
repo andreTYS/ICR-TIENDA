@@ -1,0 +1,46 @@
+# Pruebas locales sin Traefik:
+#   docker compose -f docker-compose.local.yml up --build
+#   Tienda: http://localhost:3000   API/admin: http://localhost:4000/admin/
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: productos_icr
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - db_data_local:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d productos_icr"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: productos_icr
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PORT: 4000
+    volumes:
+      - uploads_local:/app/uploads
+    ports:
+      - "4000:4000"
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+
+volumes:
+  db_data_local:
+  uploads_local:

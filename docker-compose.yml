@@ -1,0 +1,88 @@
+# Producción en el VPS: Traefik compartido (red externa traefik_public, certresolver letsencrypt).
+#   https://${DOMAIN}/            -> frontend (Next.js)
+#   https://${DOMAIN}/api/...     -> backend (Express + PostgreSQL)
+#   https://${DOMAIN}/uploads/... -> backend (imágenes de productos)
+#   https://${DOMAIN}/admin/      -> backend (panel para cargar productos, con Basic Auth)
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-productos_icr}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      # Solo se ejecutan la primera vez (volumen db_data vacío)
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - internal
+
+  backend:
+    build: ./backend
+    image: icr-tienda-backend:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-productos_icr}
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PORT: 4000
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Define ADMIN_PASSWORD en .env}
+    volumes:
+      - uploads:/app/uploads
+    networks:
+      - internal
+      - traefik_public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_public"
+      - "traefik.http.routers.icr-tienda-api.rule=Host(`${DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/uploads`) || PathPrefix(`/admin`))"
+      - "traefik.http.routers.icr-tienda-api.entrypoints=websecure"
+      - "traefik.http.routers.icr-tienda-api.tls=true"
+      - "traefik.http.routers.icr-tienda-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.icr-tienda-api.priority=100"
+      - "traefik.http.services.icr-tienda-api.loadbalancer.server.port=4000"
+
+  frontend:
+    build: ./frontend
+    image: icr-tienda-frontend:latest
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+    networks:
+      - traefik_public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_public"
+      # HTTP -> HTTPS
+      - "traefik.http.routers.icr-tienda-http.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.icr-tienda-http.entrypoints=web"
+      - "traefik.http.routers.icr-tienda-http.middlewares=icr-tienda-https-redirect"
+      - "traefik.http.middlewares.icr-tienda-https-redirect.redirectscheme.scheme=https"
+      # HTTPS
+      - "traefik.http.routers.icr-tienda.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.icr-tienda.entrypoints=websecure"
+      - "traefik.http.routers.icr-tienda.tls=true"
+      - "traefik.http.routers.icr-tienda.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.icr-tienda.priority=10"
+      - "traefik.http.services.icr-tienda.loadbalancer.server.port=3000"
+
+volumes:
+  db_data:
+  uploads:
+
+networks:
+  internal:
+  traefik_public:
+    external: true
