@@ -5,14 +5,8 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import ProductCard from '@/components/ProductCard'
 import Container from '@/components/Container'
-import { CATEGORIAS_COMPONENTE, MARCAS, SOLUCIONES, type SolucionId } from '@/data/products'
+import { SOLUCIONES, type SolucionId } from '@/data/products'
 import { useProducts } from '@/context/ProductsContext'
-
-const APLICACIONES = [
-  { id: 'b2b', label: 'Industrial / B2B' },
-  { id: 'hogar', label: 'Hogar y negocio' },
-  { id: 'offgrid', label: 'Off-grid' },
-]
 
 export default function CatalogoClient() {
   const { productos: PRODUCTOS } = useProducts()
@@ -26,7 +20,32 @@ export default function CatalogoClient() {
     searchParams.get('cat') ? [searchParams.get('cat')!] : [],
   )
   const [marcas, setMarcas] = useState<string[]>([])
-  const [aplicaciones, setAplicaciones] = useState<string[]>([])
+
+  // Las categorías y marcas del panel se calculan de los productos que
+  // realmente están cargados (los 800 del ERP en vivo, o el catálogo de
+  // respaldo si el ERP no responde) — nunca una lista fija, porque el ERP
+  // usa decenas de categorías de negocio reales (PANELES, BATERIAS,
+  // INVERSORES HIBRIDOS...) que no coinciden con ningún catálogo de muestra.
+  const categoriasDisponibles = useMemo(() => {
+    const conteo = new Map<string, number>()
+    for (const p of PRODUCTOS) conteo.set(p.cat, (conteo.get(p.cat) || 0) + 1)
+    return Array.from(conteo.entries()).sort((a, b) => b[1] - a[1])
+  }, [PRODUCTOS])
+
+  const marcasDisponibles = useMemo(() => {
+    const conteo = new Map<string, number>()
+    for (const p of PRODUCTOS) {
+      const m = p.marca.toUpperCase()
+      conteo.set(m, (conteo.get(m) || 0) + 1)
+    }
+    return Array.from(conteo.entries()).sort((a, b) => a[0].localeCompare(b[0]))
+  }, [PRODUCTOS])
+
+  const conteoPorSolucion = useMemo(() => {
+    const conteo = new Map<SolucionId, number>()
+    for (const p of PRODUCTOS) for (const s of p.soluciones) conteo.set(s, (conteo.get(s) || 0) + 1)
+    return conteo
+  }, [PRODUCTOS])
 
   const toggle = (list: string[], set: (v: string[]) => void, value: string) => {
     set(list.includes(value) ? list.filter((v) => v !== value) : [...list, value])
@@ -45,18 +64,9 @@ export default function CatalogoClient() {
       if (solucion && !p.soluciones.includes(solucion)) return false
       if (categorias.length && !categorias.includes(p.cat)) return false
       if (marcas.length && !marcas.includes(p.marca.toUpperCase())) return false
-      if (aplicaciones.length) {
-        const match = aplicaciones.some((a) => {
-          if (a === 'b2b') return p.b2b
-          if (a === 'hogar') return !p.b2b
-          if (a === 'offgrid') return p.soluciones.includes('offgrid')
-          return false
-        })
-        if (!match) return false
-      }
       return true
     })
-  }, [PRODUCTOS, q, solucion, categorias, marcas, aplicaciones])
+  }, [PRODUCTOS, q, solucion, categorias, marcas])
 
   return (
     <Container className="pt-6">
@@ -80,56 +90,70 @@ export default function CatalogoClient() {
           }`}
         >
           Todas las soluciones
+          <span className={`ml-1.5 ${!solucion ? 'text-white/60' : 'text-ink/40'}`}>({PRODUCTOS.length})</span>
         </button>
         {SOLUCIONES.map((s) => (
           <button
             key={s.id}
             onClick={() => setSolucion(s.id)}
-            className={`font-heading text-[11px] font-bold tracking-[.08em] uppercase px-4 py-2.5 whitespace-nowrap border border-ink/20 hover:border-accent transition-colors ${
+            className={`font-heading text-[11px] font-bold tracking-[.08em] uppercase px-4 py-2.5 whitespace-nowrap border border-ink/20 hover:border-accent transition-colors flex items-center gap-2 ${
               solucion === s.id ? 'bg-ink text-white' : 'bg-transparent text-ink'
             }`}
           >
+            <span className="text-accent text-sm normal-case">{s.icono}</span>
             {s.nombre}
+            <span className={solucion === s.id ? 'text-white/60' : 'text-ink/40'}>
+              ({conteoPorSolucion.get(s.id) || 0})
+            </span>
           </button>
         ))}
       </div>
 
       <div className="grid lg:grid-cols-[260px_1fr] gap-6 items-start pb-16">
         <aside className="border border-ink/[.14] p-[18px] lg:sticky lg:top-[220px]">
+          {(categorias.length > 0 || marcas.length > 0) && (
+            <button
+              onClick={() => {
+                setCategorias([])
+                setMarcas([])
+              }}
+              className="mb-4 text-[11px] font-bold tracking-[.08em] uppercase text-accent-dark hover:text-ink transition-colors"
+            >
+              ✕ Quitar filtros
+            </button>
+          )}
           <FilterGroup
             titulo="Categoría"
-            opciones={CATEGORIAS_COMPONENTE.map((c) => ({ n: c.nombre, c: c.n, value: c.nombre }))}
+            opciones={categoriasDisponibles.map(([nombre, n]) => ({ n: nombre, c: n, value: nombre }))}
             selected={categorias}
             onToggle={(v) => toggle(categorias, setCategorias, v)}
+            maxAltura
           />
           <FilterGroup
             titulo="Marca"
-            opciones={MARCAS.map((m) => ({ n: m, c: undefined, value: m }))}
+            opciones={marcasDisponibles.map(([nombre, n]) => ({ n: nombre, c: n, value: nombre }))}
             selected={marcas}
             onToggle={(v) => toggle(marcas, setMarcas, v)}
+            maxAltura
           />
-          <FilterGroup
-            titulo="Aplicación"
-            opciones={APLICACIONES.map((a) => ({ n: a.label, c: undefined, value: a.id }))}
-            selected={aplicaciones}
-            onToggle={(v) => toggle(aplicaciones, setAplicaciones, v)}
-          />
-          <div className="text-[11px] font-black tracking-[.12em] uppercase pb-2.5 border-b border-ink/[.14] mb-3.5">
-            Potencia (kW)
-          </div>
-          <div className="h-[3px] bg-ink/[.14] relative mb-2.5">
-            <div className="absolute left-[12%] right-[34%] top-0 bottom-0 bg-accent" />
-          </div>
-          <div className="flex justify-between text-[11px] text-ink/50">
-            <span>1,5 kW</span>
-            <span>70 kW</span>
-          </div>
         </aside>
 
         <div>
           {productos.length === 0 ? (
             <div className="text-center py-20 text-ink/50 text-sm">
               No hay productos que coincidan con los filtros seleccionados.
+              <div className="mt-3">
+                <button
+                  onClick={() => {
+                    setCategorias([])
+                    setMarcas([])
+                    setSolucion(null)
+                  }}
+                  className="text-[11px] font-bold tracking-[.08em] uppercase text-accent-dark hover:text-ink transition-colors"
+                >
+                  Quitar todos los filtros
+                </button>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -156,18 +180,21 @@ function FilterGroup({
   opciones,
   selected,
   onToggle,
+  maxAltura,
 }: {
   titulo: string
   opciones: { n: string; c?: number; value: string }[]
   selected: string[]
   onToggle: (value: string) => void
+  maxAltura?: boolean
 }) {
+  if (opciones.length === 0) return null
   return (
     <div className="mb-5">
       <div className="text-[11px] font-black tracking-[.12em] uppercase pb-2.5 border-b border-ink/[.14] mb-3">
         {titulo}
       </div>
-      <div className="flex flex-col gap-2.5">
+      <div className={`flex flex-col gap-2.5 ${maxAltura ? 'max-h-[260px] overflow-y-auto pr-1' : ''}`}>
         {opciones.map((o) => {
           const value = o.value
           const checked = selected.includes(value)

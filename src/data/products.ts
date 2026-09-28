@@ -24,30 +24,34 @@ export interface Producto {
 
 export const money = (n: number) => 'S/ ' + n.toLocaleString('es-PE')
 
-export const SOLUCIONES: { id: SolucionId; nombre: string; desc: string; meta: string }[] = [
+export const SOLUCIONES: { id: SolucionId; nombre: string; desc: string; meta: string; icono: string }[] = [
   {
     id: 'respaldo',
     nombre: 'Respaldo energético',
     desc: 'Continuidad de cargas críticas ante falla o inestabilidad de red.',
     meta: 'Baterías · Híbridos · Transferencia',
+    icono: '⚡',
   },
   {
     id: 'autoconsumo',
     nombre: 'Autoconsumo en red',
     desc: 'Reducción de factura con generación solar conectada y medición bidireccional.',
     meta: 'On-grid · Medidores · Estructura',
+    icono: '☀',
   },
   {
     id: 'offgrid',
     nombre: 'Sistemas off-grid y on-grid',
     desc: 'Energía donde la red no llega, y generación conectada donde sí: telecom, agro, obra y zonas aisladas.',
     meta: 'Aislado · Bancos · Controladores',
+    icono: '⛰',
   },
   {
     id: 'monitoreo',
     nombre: 'Monitoreo y calidad',
     desc: 'Medición, alarmas y control de planta para operar con datos.',
     meta: 'Datahub · Sensores · Analítica',
+    icono: '◈',
   },
 ]
 

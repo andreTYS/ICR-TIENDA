@@ -2,8 +2,8 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { Suspense, useState } from 'react'
 import logo from '../assets/logo.png'
 import { useQuote } from '../context/QuoteContext'
 import { useAuth } from '../context/AuthContext'
@@ -105,18 +105,45 @@ export default function Header() {
 
       {/* solution bar */}
       <div className="bg-surface border-b border-ink/10">
-        <Container className="flex flex-wrap justify-center gap-x-8 overflow-x-auto">
-          {SOLUCIONES.map((s) => (
-            <Link
-              key={s.id}
-              href={`/catalogo?solucion=${s.id}`}
-              className="text-[11px] font-medium tracking-[.1em] uppercase text-ink py-[13px] border-b-2 border-transparent hover:border-accent whitespace-nowrap transition-colors"
-            >
-              {s.nombre}
-            </Link>
-          ))}
+        <Container className="flex flex-wrap justify-center gap-x-2 sm:gap-x-3 overflow-x-auto">
+          <Suspense fallback={<SolucionesLinks solucionActiva={null} />}>
+            <SolucionesBar />
+          </Suspense>
         </Container>
       </div>
     </header>
+  )
+}
+
+// useSearchParams solo sirve para resaltar la solución activa cuando ya
+// estás en /catalogo — aislado en su propio componente + Suspense para que
+// esa dependencia no obligue a renderizar TODO el Header (y por lo tanto
+// cada página que lo usa, vía el layout raíz) del lado del cliente.
+function SolucionesBar() {
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const solucionActiva = pathname === '/catalogo' ? searchParams.get('solucion') : null
+  return <SolucionesLinks solucionActiva={solucionActiva} />
+}
+
+function SolucionesLinks({ solucionActiva }: { solucionActiva: string | null }) {
+  return (
+    <>
+      {SOLUCIONES.map((s) => {
+        const activa = solucionActiva === s.id
+        return (
+          <Link
+            key={s.id}
+            href={`/catalogo?solucion=${s.id}`}
+            className={`flex items-center gap-1.5 text-[11px] font-bold tracking-[.08em] uppercase px-3 py-[13px] border-b-2 whitespace-nowrap transition-colors ${
+              activa ? 'text-ink border-accent' : 'text-ink/60 border-transparent hover:text-ink hover:border-accent/50'
+            }`}
+          >
+            <span className="text-accent-dark text-[13px] normal-case">{s.icono}</span>
+            {s.nombre}
+          </Link>
+        )
+      })}
+    </>
   )
 }
