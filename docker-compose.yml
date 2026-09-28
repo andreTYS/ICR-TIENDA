@@ -27,7 +27,12 @@ services:
       - "traefik.http.routers.icr-tienda.rule=Host(`${DOMAIN}`)"
       - "traefik.http.routers.icr-tienda.entrypoints=websecure"
       - "traefik.http.routers.icr-tienda.tls=true"
-      - "traefik.http.routers.icr-tienda.tls.certresolver=letsencrypt"
+      # "letsencrypt" no existe como certResolver en este Traefik — el único
+      # definido en su configuración estática es "mytlschallenge" (ver
+      # arranque del contenedor n8n-traefik-1). Con un resolver inexistente,
+      # Traefik nunca emite certificado real y sirve el autofirmado por
+      # defecto en su lugar.
+      - "traefik.http.routers.icr-tienda.tls.certresolver=mytlschallenge"
       - "traefik.http.services.icr-tienda.loadbalancer.server.port=3000"
 
 networks:
