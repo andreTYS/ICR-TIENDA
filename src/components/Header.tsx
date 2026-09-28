@@ -13,6 +13,7 @@ import Container from './Container'
 const NAV_LINKS = [
   { to: '/', label: 'Inicio' },
   { to: '/catalogo', label: 'Tienda' },
+  { to: '/calculadora-solar', label: 'Calculadora solar' },
   { to: '/soluciones', label: 'Soluciones' },
   { to: '/proyectos', label: 'Proyectos' },
 ]

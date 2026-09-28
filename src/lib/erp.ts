@@ -99,6 +99,13 @@ export interface SolicitudCotizacion {
 // Crea un Lead en el CRM del ERP (origen WEB) — no un cliente ni una
 // cotización formal: un vendedor lo revisa y sigue el proceso normal desde
 // el ERP. Reusa POST /crm/leads tal cual, con el token de servicio.
+//
+// `channel` viaja hasta auditoria.canal en el ERP, que solo admite
+// 'web'/'telegram'/'api'/'n8n' (CHECK de db/schema.sql) — 'web-tienda' violaba
+// esa restricción y hacía fallar SIEMPRE esta creación de lead, sin que se
+// notara porque el error solo aparecía en los logs del backend, nunca en la
+// tienda. La distinción "vino de la tienda pública" ya queda registrada en
+// el propio lead vía `origen: 'WEB'`, así que 'web' alcanza para el canal.
 export async function crearLeadDesdeWeb(solicitud: SolicitudCotizacion): Promise<{ codigo: string }> {
   if (!isConfigured()) {
     throw new Error('ERP_API_URL/ERP_API_TOKEN no configurados')
@@ -107,7 +114,7 @@ export async function crearLeadDesdeWeb(solicitud: SolicitudCotizacion): Promise
     method: 'POST',
     cache: 'no-store',
     body: JSON.stringify({
-      channel: 'web-tienda',
+      channel: 'web',
       nombre_contacto: solicitud.nombreContacto,
       empresa: solicitud.empresa || null,
       email: solicitud.email || null,
