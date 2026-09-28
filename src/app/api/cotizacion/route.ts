@@ -7,6 +7,17 @@ interface ItemSolicitado {
   qty: number
 }
 
+interface ResumenCalculadora {
+  tipo: string
+  zona: string
+  consumoMensualKwh: number
+  kwp: string
+  cantidadPaneles: number
+  ahorroMensual: number
+  ahorroAnual: number
+  coberturaPct: number
+}
+
 interface CuerpoSolicitud {
   empresa?: string
   contacto?: string
@@ -15,6 +26,7 @@ interface CuerpoSolicitud {
   consumo?: string
   tipoCliente?: 'empresa' | 'hogar'
   items: ItemSolicitado[]
+  calculadora?: ResumenCalculadora
 }
 
 function construirNotas(b: CuerpoSolicitud): string {
@@ -22,6 +34,17 @@ function construirNotas(b: CuerpoSolicitud): string {
     `Tipo de cliente: ${b.tipoCliente === 'hogar' ? 'Hogar' : 'Empresa'}`,
     b.ciudad ? `Ciudad del proyecto: ${b.ciudad}` : null,
     b.consumo ? `Consumo mensual estimado: ${b.consumo} kWh` : null,
+    b.calculadora
+      ? [
+          '',
+          'Vino de la Calculadora Solar:',
+          `- Variante: ${b.calculadora.tipo} (zona ${b.calculadora.zona})`,
+          `- Consumo mensual estimado: ${b.calculadora.consumoMensualKwh} kWh`,
+          `- Sistema: ${b.calculadora.kwp} kWp, ${b.calculadora.cantidadPaneles} paneles`,
+          `- Ahorro estimado: S/ ${b.calculadora.ahorroMensual}/mes (S/ ${b.calculadora.ahorroAnual}/año)`,
+          `- Cobertura estimada del consumo: ${b.calculadora.coberturaPct}%`,
+        ].join('\n')
+      : null,
     '',
     'Referencias solicitadas desde la tienda web:',
     ...(b.items || []).map((it) => `- ${it.qty} x ${it.nombre} (SKU ${it.sku})`),

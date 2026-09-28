@@ -40,6 +40,34 @@ export default function Home() {
         ]}
       />
 
+      <section className="py-10">
+        <Container>
+          <div className="bg-ink text-white p-7 sm:p-9 flex flex-wrap gap-6 items-center justify-between">
+            <div className="flex items-center gap-5 max-w-[560px]">
+              <div className="hidden sm:flex h-14 w-14 shrink-0 items-center justify-center bg-accent text-ink font-black text-2xl">
+                ☀
+              </div>
+              <div>
+                <div className="text-[11px] font-bold tracking-[.2em] uppercase text-accent mb-1.5">Nuevo</div>
+                <h2 className="text-xl sm:text-2xl font-black uppercase leading-tight mb-2">
+                  Calcula tu sistema solar con tu recibo de luz
+                </h2>
+                <p className="text-[13px] leading-relaxed text-white/75 m-0">
+                  Paneles, inversor y baterías reales de nuestro catálogo, ahorro estimado y retorno de inversión
+                  — en menos de un minuto.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/calculadora-solar"
+              className="border-0 bg-accent text-ink font-heading text-xs font-black tracking-[.1em] uppercase px-7 py-4 hover:bg-accent-2 transition-colors whitespace-nowrap"
+            >
+              Calcular ahora
+            </Link>
+          </div>
+        </Container>
+      </section>
+
       <section className="py-16">
         <Container>
           <div className="flex flex-wrap gap-4 items-end justify-between mb-8">

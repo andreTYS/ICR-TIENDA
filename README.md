@@ -21,6 +21,7 @@ Docker de 3 etapas, mismo patrón de despliegue (Docker Compose + Traefik) que `
 |---|---|
 | `/` | Landing: soluciones, marcas, llamado a catálogo/cotización |
 | `/catalogo` | Catálogo técnico con filtros (categoría, marca, aplicación, solución) |
+| `/calculadora-solar` | Dimensionador solar: calcula on-grid/híbrido/off-grid con equipos reales del catálogo a partir del recibo de luz |
 | `/producto/[id]` | Ficha de producto: specs, precio, "Añadir a cotización" |
 | `/cotizacion` | Carrito de referencias + formulario → crea un Lead en el ERP |
 | `/soluciones` | Páginas de soluciones (residencial, industrial, off-grid, etc.) |
@@ -45,6 +46,31 @@ Toda la integración vive server-side en `src/lib/erp.ts` y en los Route Handler
 `src/app/api/*` — el token de servicio del ERP nunca se envía al navegador. Usa el mismo mecanismo
 de "token de servicio actuando como un usuario" que ya usa N8N para integrarse con el ERP, así que
 no fue necesario agregar endpoints públicos nuevos al ERP.
+
+## Calculadora solar (`/calculadora-solar`)
+
+Puerto a TypeScript del dimensionador interno de ICR (`Dimensionador_Solar_ICR_Pro.xlsx`): mismas
+fórmulas para las 3 variantes (ON-GRID, HÍBRIDO, OFF-GRID) — energía a cubrir, Wp requerido,
+potencia mínima de inversor, kWh de batería, recorte por perfil horario, ahorro y retorno. Vive en
+`src/lib/dimensionadorSolar.ts`, sin dependencias del catálogo.
+
+El catálogo real (los productos importados del ERP, `GET /api/productos`) no tiene columnas
+estructuradas de Wp/kW/V/Ah como el Excel — así que `src/lib/matchEquiposSolares.ts` las **parsea
+del nombre real del producto** (ej. `"570W PANEL SOLAR TRINA..."`, `"3KW INVERSOR RED GROWATT"`,
+`"12V 100AH BATERIA LITIO"`) y elige, por categoría, el equipo real más chico que cumple el
+mínimo calculado — mismo criterio que el Excel. Un nombre que no se puede interpretar
+simplemente no entra como candidato (nunca rompe la página); si no hay ningún candidato en una
+categoría, esa línea se muestra como "a definir por nuestro equipo técnico".
+
+Simplificaciones deliberadas frente al Excel (es una herramienta de generación de leads para el
+público, no el presupuesto interno — ese lo sigue armando un ingeniero): un solo método de
+consumo (recibo de luz, no el formulario de equipos por horas), cobertura diurna fija en 100%,
+DoD de batería fijo en litio (0.9), y estructura/cableado/instalación estimados como un
+porcentaje sobre el equipo principal en vez de emparejarse ítem por ítem.
+
+"Solicitar esta cotización" agrega los equipos sugeridos al mismo carrito de `/cotizacion`
+(`useQuote().add`) y guarda un resumen en `sessionStorage` que `/cotizacion` adjunta a las notas
+del Lead — mismo Lead real de siempre, con el contexto del cálculo ya adentro.
 
 ## Desarrollo local
 

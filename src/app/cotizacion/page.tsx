@@ -1,9 +1,20 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useQuote } from '@/context/QuoteContext'
 import Container from '@/components/Container'
+
+interface ResumenCalculadora {
+  tipo: string
+  zona: string
+  consumoMensualKwh: number
+  kwp: string
+  cantidadPaneles: number
+  ahorroMensual: number
+  ahorroAnual: number
+  coberturaPct: number
+}
 
 const CAMPOS = [
   { key: 'empresa', label: 'Empresa o nombre', ph: 'Inversiones ejemplo S.A.C.' },
@@ -20,6 +31,20 @@ export default function Cotizacion() {
   const [enviado, setEnviado] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [resumenCalculadora, setResumenCalculadora] = useState<ResumenCalculadora | null>(null)
+
+  // Si el visitante vino de /calculadora-solar, ese resumen viaja en
+  // sessionStorage (no en el carrito, que solo entiende SKU+cantidad) y se
+  // adjunta a las notas del lead para que el vendedor vea el contexto
+  // completo sin tener que pedírselo de nuevo al cliente.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('icr_calculadora_solar')
+      if (raw) setResumenCalculadora(JSON.parse(raw))
+    } catch {
+      // navegación privada u otro bloqueo de storage: simplemente no se muestra el resumen
+    }
+  }, [])
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -37,6 +62,7 @@ export default function Cotizacion() {
           consumo: form.consumo,
           tipoCliente,
           items: rows.map((r) => ({ sku: r.sku, nombre: r.nombre, qty: r.qty })),
+          calculadora: resumenCalculadora ?? undefined,
         }),
       })
       const data = await res.json().catch(() => null)
@@ -44,6 +70,11 @@ export default function Cotizacion() {
         throw new Error(data?.error || 'No se pudo enviar la solicitud.')
       }
       setEnviado(true)
+      try {
+        sessionStorage.removeItem('icr_calculadora_solar')
+      } catch {
+        // no bloquea el flujo si el storage no está disponible
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo enviar la solicitud.')
     } finally {
@@ -63,6 +94,22 @@ export default function Cotizacion() {
         Revisamos compatibilidad, dimensionamiento y disponibilidad antes de responder. Tiempo de respuesta: 24
         horas hábiles.
       </p>
+
+      {resumenCalculadora && (
+        <div className="border border-accent bg-surface p-4 mb-7 flex flex-wrap gap-x-8 gap-y-2 items-center">
+          <span className="text-[10.5px] font-black tracking-[.12em] uppercase text-accent-dark">
+            De tu cálculo solar
+          </span>
+          <span className="text-[12.5px] text-ink">
+            <strong>{resumenCalculadora.tipo}</strong> · {resumenCalculadora.kwp} kWp ·{' '}
+            {resumenCalculadora.cantidadPaneles} paneles
+          </span>
+          <span className="text-[12.5px] text-ink">
+            Ahorro estimado: <strong>S/ {resumenCalculadora.ahorroMensual}/mes</strong>
+          </span>
+          <span className="text-[12.5px] text-ink">Cobertura: {resumenCalculadora.coberturaPct}%</span>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-[2fr_1fr] gap-7 items-start">
         <div>
