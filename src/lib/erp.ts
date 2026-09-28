@@ -57,27 +57,38 @@ export interface ErpStockRow {
   stock_disponible: number | string
 }
 
-// Trae el catálogo completo (paginado por el ERP hasta 500 a la vez) y el
-// stock agregado por SKU en paralelo. Lanza si el ERP no está configurado o
-// responde con error — el llamador (route handler) decide el fallback.
+// El ERP limita cada página a 500 filas como máximo (tope duro en
+// inventoryService.paginationParams), sin importar el page_size pedido — con
+// más de 500 productos (hoy ~800) hay que pedir varias páginas y juntarlas.
+// Antes esta función solo pedía la página 1 y se quedaba ahí: la tienda
+// mostraba de menos, silenciosamente, sin ningún error.
+async function fetchTodasLasPaginas<T>(path: string): Promise<T[]> {
+  const items: T[] = []
+  const MAX_PAGINAS = 50 // 25.000 filas a 500/página — muy por encima de lo real, solo para nunca quedar en loop infinito
+  for (let page = 1; page <= MAX_PAGINAS; page++) {
+    const res = await erpFetch(`${path}${path.includes('?') ? '&' : '?'}page=${page}&page_size=500`)
+    if (!res.ok) throw new Error(`ERP ${path} respondió ${res.status}`)
+    const body = await res.json()
+    const pageItems: T[] = body?.data?.items || []
+    items.push(...pageItems)
+    const total = Number(body?.data?.total || 0)
+    if (pageItems.length === 0 || items.length >= total) break
+  }
+  return items
+}
+
+// Trae el catálogo completo (paginando todas las páginas que hagan falta) y
+// el stock agregado por SKU en paralelo. Lanza si el ERP no está configurado
+// o responde con error — el llamador (route handler) decide el fallback.
 export async function fetchErpCatalogo(): Promise<{ productos: ErpProducto[]; stockPorSku: Record<string, number> }> {
   if (!isConfigured()) {
     throw new Error('ERP_API_URL/ERP_API_TOKEN no configurados')
   }
 
-  const [productosRes, stockRes] = await Promise.all([
-    erpFetch('/inventory/products?page_size=500'),
-    erpFetch('/inventory/stock?page_size=500'),
+  const [productos, stockRows] = await Promise.all([
+    fetchTodasLasPaginas<ErpProducto>('/inventory/products'),
+    fetchTodasLasPaginas<ErpStockRow>('/inventory/stock'),
   ])
-
-  if (!productosRes.ok) throw new Error(`ERP /inventory/products respondió ${productosRes.status}`)
-  if (!stockRes.ok) throw new Error(`ERP /inventory/stock respondió ${stockRes.status}`)
-
-  const productosBody = await productosRes.json()
-  const stockBody = await stockRes.json()
-
-  const productos: ErpProducto[] = productosBody?.data?.items || []
-  const stockRows: ErpStockRow[] = stockBody?.data?.items || []
 
   const stockPorSku: Record<string, number> = {}
   for (const row of stockRows) {
