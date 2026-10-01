@@ -5,83 +5,126 @@ import { useRouter } from 'next/navigation'
 import Container from '@/components/Container'
 import { useAuth } from '@/context/AuthContext'
 import { money } from '@/data/products'
+import type { PedidoTienda } from '@/lib/erp'
 
-const PEDIDOS_EN_CURSO = [
-  {
-    id: 'ICR-2314',
-    fecha: '02 sep 2026',
-    resumen: 'Inversor híbrido Deye SUN-8K-SG04LP3-EU × 1, Batería Pylontech US5000 × 4',
-    total: 30300,
-    estado: 'En preparación',
-  },
-  {
-    id: 'ICR-2298',
-    fecha: '28 ago 2026',
-    resumen: 'Panel Jinko Tiger Neo 580 W × 12, Riel de aluminio K2 Systems × 8',
-    total: 8560,
-    estado: 'En camino',
-  },
-]
+// Un "pedido" acá es una Cotización o un Contrato real del ERP, del cliente
+// formal (tabla `clientes`) cuyo RUC/DNI coincide con el de esta cuenta de
+// tienda — ver tiendaAuthService.obtenerPedidos. No existe un concepto de
+// "pedido de e-commerce" separado: este negocio vende por cotización.
+const ESTADO_LABEL: Record<string, string> = {
+  'COTIZACION:BORRADOR': 'Cotización en preparación',
+  'COTIZACION:ENVIADA': 'Cotización enviada',
+  'COTIZACION:ACEPTADA': 'Cotización aceptada',
+  'COTIZACION:RECHAZADA': 'Cotización rechazada',
+  'COTIZACION:CONVERTIDA': 'Convertida en contrato',
+  'CONTRATO:BORRADOR': 'Contrato en preparación',
+  'CONTRATO:VIGENTE': 'Contrato vigente',
+  'CONTRATO:FINALIZADO': 'Contrato finalizado',
+  'CONTRATO:CANCELADO': 'Contrato cancelado',
+}
 
-const HISTORIAL_PEDIDOS = [
-  {
-    id: 'ICR-2201',
-    fecha: '14 jul 2026',
-    resumen: 'Huawei SmartLogger 3000A × 1',
-    total: 1450,
-    estado: 'Entregado',
-  },
-  {
-    id: 'ICR-2144',
-    fecha: '02 jun 2026',
-    resumen: 'Microinversor Hoymiles HMS-2000-4T × 3',
-    total: 3870,
-    estado: 'Entregado',
-  },
-  {
-    id: 'ICR-2087',
-    fecha: '19 abr 2026',
-    resumen: 'Banco Dyness PowerBox 15 kWh HV × 1',
-    total: 16500,
-    estado: 'Entregado',
-  },
-]
+const ESTADOS_EN_CURSO = new Set(['COTIZACION:BORRADOR', 'COTIZACION:ENVIADA', 'COTIZACION:ACEPTADA', 'CONTRATO:BORRADOR', 'CONTRATO:VIGENTE'])
 
 const ESTADO_COLOR: Record<string, string> = {
-  'En preparación': 'bg-surface text-accent-dark',
-  'En camino': 'bg-accent text-ink',
-  Entregado: 'bg-surface text-ink/60',
+  'COTIZACION:BORRADOR': 'bg-surface text-ink/60',
+  'COTIZACION:ENVIADA': 'bg-surface text-accent-dark',
+  'COTIZACION:ACEPTADA': 'bg-accent text-ink',
+  'COTIZACION:RECHAZADA': 'bg-surface text-ink/60',
+  'COTIZACION:CONVERTIDA': 'bg-accent text-ink',
+  'CONTRATO:BORRADOR': 'bg-surface text-ink/60',
+  'CONTRATO:VIGENTE': 'bg-accent text-ink',
+  'CONTRATO:FINALIZADO': 'bg-surface text-ink/60',
+  'CONTRATO:CANCELADO': 'bg-surface text-ink/60',
+}
+
+function PedidoRow({ p }: { p: PedidoTienda }) {
+  const clave = `${p.tipo}:${p.estado}`
+  const fecha = p.fecha ? new Date(p.fecha).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+  return (
+    <div className="p-4 flex flex-wrap gap-3 items-center justify-between">
+      <div className="min-w-0">
+        <div className="text-[10.5px] font-bold tracking-[.1em] uppercase text-accent-dark mb-1">
+          {p.codigo} · {fecha}
+        </div>
+      </div>
+      <div className="flex items-center gap-3 shrink-0">
+        <span className={`text-[10.5px] font-bold tracking-[.08em] uppercase px-2.5 py-1 ${ESTADO_COLOR[clave] || 'bg-surface text-ink/60'}`}>
+          {ESTADO_LABEL[clave] || p.estado}
+        </span>
+        <span className="text-sm font-black">{money(Number(p.monto))}</span>
+      </div>
+    </div>
+  )
 }
 
 export default function Perfil() {
-  const { user, ready, logout, updateProfile } = useAuth()
+  const { user, token, ready, logout, updateProfile } = useAuth()
   const router = useRouter()
   const [editando, setEditando] = useState(false)
-  const [form, setForm] = useState({ nombre: '', correo: '', empresa: '', telefono: '' })
+  const [guardando, setGuardando] = useState(false)
+  const [errorPerfil, setErrorPerfil] = useState<string | null>(null)
+  const [form, setForm] = useState({ nombre: '', telefono: '', empresa: '', ruc: '' })
+
+  const [pedidos, setPedidos] = useState<PedidoTienda[] | null>(null)
+  const [razonSocial, setRazonSocial] = useState<string | undefined>()
+  const [errorPedidos, setErrorPedidos] = useState<string | null>(null)
 
   useEffect(() => {
     if (ready && !user) router.replace('/login')
     if (user) {
       setForm({
         nombre: user.nombre,
-        correo: user.correo,
-        empresa: user.empresa ?? '',
         telefono: user.telefono ?? '',
+        empresa: user.empresa ?? '',
+        ruc: user.ruc ?? user.dni ?? '',
       })
     }
   }, [ready, user, router])
 
+  useEffect(() => {
+    if (!token) return
+    let cancelado = false
+    fetch('/api/auth/pedidos', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelado) return
+        if (data.status === 'success') {
+          setPedidos(data.pedidos || [])
+          setRazonSocial(data.razonSocial)
+        } else {
+          setErrorPedidos(data.error || 'No se pudo cargar el historial de pedidos')
+        }
+      })
+      .catch(() => !cancelado && setErrorPedidos('No se pudo cargar el historial de pedidos'))
+    return () => {
+      cancelado = true
+    }
+  }, [token])
+
   if (!user) return null
 
-  const guardarPerfil = (e: React.FormEvent) => {
+  const enCurso = (pedidos || []).filter((p) => ESTADOS_EN_CURSO.has(`${p.tipo}:${p.estado}`))
+  const concluidos = (pedidos || []).filter((p) => !ESTADOS_EN_CURSO.has(`${p.tipo}:${p.estado}`))
+
+  const guardarPerfil = async (e: React.FormEvent) => {
     e.preventDefault()
-    updateProfile({
-      nombre: form.nombre,
-      correo: form.correo,
-      empresa: form.empresa || undefined,
-      telefono: form.telefono || undefined,
-    })
-    setEditando(false)
+    setErrorPerfil(null)
+    setGuardando(true)
+    try {
+      const rucODni = form.ruc.trim()
+      await updateProfile({
+        nombre: form.nombre,
+        telefono: form.telefono || undefined,
+        empresa: form.empresa || undefined,
+        ruc: /^\d{11}$/.test(rucODni) ? rucODni : undefined,
+        dni: rucODni && !/^\d{11}$/.test(rucODni) ? rucODni : undefined,
+      })
+      setEditando(false)
+    } catch (err) {
+      setErrorPerfil(err instanceof Error ? err.message : 'No se pudo actualizar el perfil')
+    } finally {
+      setGuardando(false)
+    }
   }
 
   return (
@@ -126,9 +169,9 @@ export default function Perfil() {
               {(
                 [
                   ['nombre', 'Nombre completo'],
-                  ['correo', 'Correo electrónico'],
                   ['empresa', 'Empresa'],
                   ['telefono', 'Teléfono'],
+                  ['ruc', 'RUC o DNI'],
                 ] as const
               ).map(([key, label]) => (
                 <div key={key}>
@@ -142,12 +185,14 @@ export default function Perfil() {
                   />
                 </div>
               ))}
+              {errorPerfil && <p className="text-[12.5px] text-red-600">{errorPerfil}</p>}
               <div className="flex gap-2 mt-1">
                 <button
                   type="submit"
-                  className="flex-1 border-0 bg-ink text-white font-heading text-[11px] font-bold tracking-[.1em] uppercase px-4 py-3 hover:bg-accent-dark transition-colors"
+                  disabled={guardando}
+                  className="flex-1 border-0 bg-ink text-white font-heading text-[11px] font-bold tracking-[.1em] uppercase px-4 py-3 hover:bg-accent-dark transition-colors disabled:opacity-60"
                 >
-                  Guardar
+                  {guardando ? 'Guardando…' : 'Guardar'}
                 </button>
                 <button
                   type="button"
@@ -165,6 +210,7 @@ export default function Perfil() {
                 ['Correo', user.correo],
                 ['Empresa', user.empresa || '—'],
                 ['Teléfono', user.telefono || '—'],
+                ['RUC / DNI', user.ruc || user.dni || '—'],
               ].map(([label, value]) => (
                 <div key={label}>
                   <dt className="text-[10.5px] font-medium tracking-[.1em] uppercase text-ink/45 mb-1">
@@ -173,59 +219,55 @@ export default function Perfil() {
                   <dd className="text-[13px] font-bold text-ink m-0">{value}</dd>
                 </div>
               ))}
+              {razonSocial && (
+                <div>
+                  <dt className="text-[10.5px] font-medium tracking-[.1em] uppercase text-ink/45 mb-1">
+                    Cliente ICR vinculado
+                  </dt>
+                  <dd className="text-[13px] font-bold text-ink m-0">{razonSocial}</dd>
+                </div>
+              )}
             </dl>
           )}
         </div>
 
         {/* Pedidos */}
         <div className="flex flex-col gap-10">
-          <div>
-            <h2 className="kicker text-ink/55 mb-4">Pedidos en curso</h2>
-            <div className="border border-ink/[.14] divide-y divide-ink/10">
-              {PEDIDOS_EN_CURSO.map((p) => (
-                <div key={p.id} className="p-4 flex flex-wrap gap-3 items-center justify-between">
-                  <div className="min-w-0">
-                    <div className="text-[10.5px] font-bold tracking-[.1em] uppercase text-accent-dark mb-1">
-                      {p.id} · {p.fecha}
-                    </div>
-                    <div className="text-[13px] text-ink/80">{p.resumen}</div>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span
-                      className={`text-[10.5px] font-bold tracking-[.08em] uppercase px-2.5 py-1 ${ESTADO_COLOR[p.estado]}`}
-                    >
-                      {p.estado}
-                    </span>
-                    <span className="text-sm font-black">{money(p.total)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          {errorPedidos && <p className="text-[13px] text-red-600">{errorPedidos}</p>}
 
-          <div>
-            <h2 className="kicker text-ink/55 mb-4">Historial de pedidos</h2>
-            <div className="border border-ink/[.14] divide-y divide-ink/10">
-              {HISTORIAL_PEDIDOS.map((p) => (
-                <div key={p.id} className="p-4 flex flex-wrap gap-3 items-center justify-between">
-                  <div className="min-w-0">
-                    <div className="text-[10.5px] font-bold tracking-[.1em] uppercase text-accent-dark mb-1">
-                      {p.id} · {p.fecha}
-                    </div>
-                    <div className="text-[13px] text-ink/80">{p.resumen}</div>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span
-                      className={`text-[10.5px] font-bold tracking-[.08em] uppercase px-2.5 py-1 ${ESTADO_COLOR[p.estado]}`}
-                    >
-                      {p.estado}
-                    </span>
-                    <span className="text-sm font-black">{money(p.total)}</span>
-                  </div>
-                </div>
-              ))}
+          {pedidos === null && !errorPedidos && (
+            <p className="text-[13px] text-ink/50">Cargando tus cotizaciones y contratos…</p>
+          )}
+
+          {pedidos !== null && pedidos.length === 0 && (
+            <div className="border border-ink/[.14] p-6 text-[13px] text-ink/60">
+              {user.ruc || user.dni
+                ? 'Todavía no tienes cotizaciones ni contratos registrados con este RUC/DNI en ICR.'
+                : 'Agrega tu RUC o DNI en "Datos del perfil" para ver aquí tus cotizaciones y contratos con ICR.'}
             </div>
-          </div>
+          )}
+
+          {enCurso.length > 0 && (
+            <div>
+              <h2 className="kicker text-ink/55 mb-4">Pedidos en curso</h2>
+              <div className="border border-ink/[.14] divide-y divide-ink/10">
+                {enCurso.map((p) => (
+                  <PedidoRow key={p.codigo} p={p} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {concluidos.length > 0 && (
+            <div>
+              <h2 className="kicker text-ink/55 mb-4">Historial de pedidos</h2>
+              <div className="border border-ink/[.14] divide-y divide-ink/10">
+                {concluidos.map((p) => (
+                  <PedidoRow key={p.codigo} p={p} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </Container>

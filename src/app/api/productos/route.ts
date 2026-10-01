@@ -67,6 +67,7 @@ function mapearProducto(p: ErpProducto, stockDisponible: number): Producto {
     soluciones: solucionesPorCategoria(cat),
     imagen: erpImageUrl(p.imagen_url),
     precioIndefinido: precioVenta == null,
+    destacado: p.destacado === true,
   }
 }
 

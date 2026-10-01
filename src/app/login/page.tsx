@@ -11,20 +11,25 @@ export default function Login() {
   const router = useRouter()
   const [correo, setCorreo] = useState('')
   const [password, setPassword] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (ready && user) router.replace('/perfil')
   }, [ready, user, router])
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const nombreBase = correo.split('@')[0].replace(/[._-]+/g, ' ').trim()
-    const nombre = nombreBase
-      .split(' ')
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(' ')
-    login({ nombre: nombre || 'Cliente ICR', correo })
-    router.push('/perfil')
+    setError(null)
+    setEnviando(true)
+    try {
+      await login(correo, password)
+      router.push('/perfil')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Correo o contraseña incorrectos')
+    } finally {
+      setEnviando(false)
+    }
   }
 
   return (
@@ -66,15 +71,14 @@ export default function Login() {
               className="w-full border border-ink/20 px-3 py-2.5 text-[13px] text-ink placeholder:text-ink/40 outline-none focus:border-accent"
             />
           </div>
+          {error && <p className="text-[12.5px] text-red-600">{error}</p>}
           <button
             type="submit"
-            className="border-0 bg-ink text-white font-heading text-xs font-black tracking-[.1em] uppercase px-4 py-4 mt-2 hover:bg-accent-dark transition-colors"
+            disabled={enviando}
+            className="border-0 bg-ink text-white font-heading text-xs font-black tracking-[.1em] uppercase px-4 py-4 mt-2 hover:bg-accent-dark transition-colors disabled:opacity-60"
           >
-            Iniciar sesión
+            {enviando ? 'Ingresando…' : 'Iniciar sesión'}
           </button>
-          <div className="text-[11px] text-ink/45 leading-relaxed text-center">
-            Cuenta de demostración: la autenticación real se conectará al backend próximamente.
-          </div>
         </form>
 
         <div className="text-center mt-6 text-[13px] text-ink/65">

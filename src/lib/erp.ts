@@ -50,6 +50,7 @@ export interface ErpProducto {
   precio_venta: number | string | null
   categoria: string | null
   imagen_url: string | null
+  destacado?: boolean
 }
 
 export interface ErpStockRow {
@@ -139,6 +140,91 @@ export async function crearLeadDesdeWeb(solicitud: SolicitudCotizacion): Promise
     throw new Error(body?.error?.message || `ERP /crm/leads respondió ${res.status}`)
   }
   return { codigo: body.data.lead.codigo }
+}
+
+// ---------- Cuentas de tienda (login/registro/historial de pedidos) ----------
+// El navegador nunca llama al ERP directo (ver nota de archivo): estas
+// funciones las usan únicamente las rutas /api/auth/* de Next.js, que sí
+// corren en el servidor. registro/login van con el token de servicio de
+// siempre (igual que crearLeadDesdeWeb); obtenerPedidos en cambio reenvía el
+// JWT propio del cliente de tienda que emite el ERP al loguearse — por eso
+// recibe `tokenCliente` y lo manda como Authorization, pisando el token de
+// servicio por defecto de erpFetch.
+
+export interface TiendaAuthUser {
+  nombre: string
+  correo: string
+  telefono: string | null
+  empresa: string | null
+  ruc: string | null
+  dni: string | null
+}
+
+export interface TiendaAuthSesion {
+  token: string
+  user: TiendaAuthUser
+}
+
+export interface RegistroClienteTienda {
+  nombre: string
+  correo: string
+  password: string
+  telefono?: string
+  empresa?: string
+  ruc?: string
+  dni?: string
+}
+
+async function leerRespuestaAuth(res: Response): Promise<TiendaAuthSesion> {
+  const body = await res.json().catch(() => null)
+  if (!res.ok || body?.status !== "success") {
+    throw new Error(body?.error?.message || `ERP respondió ${res.status}`)
+  }
+  return body.data
+}
+
+export async function registrarClienteTienda(datos: RegistroClienteTienda): Promise<TiendaAuthSesion> {
+  if (!isConfigured()) throw new Error("La tienda todavía no está conectada al ERP")
+  const res = await erpFetch("/tienda-auth/registro", { method: "POST", cache: "no-store", body: JSON.stringify(datos) })
+  return leerRespuestaAuth(res)
+}
+
+export async function loginClienteTienda(correo: string, password: string): Promise<TiendaAuthSesion> {
+  if (!isConfigured()) throw new Error("La tienda todavía no está conectada al ERP")
+  const res = await erpFetch("/tienda-auth/login", { method: "POST", cache: "no-store", body: JSON.stringify({ correo, password }) })
+  return leerRespuestaAuth(res)
+}
+
+export async function actualizarPerfilTienda(
+  tokenCliente: string,
+  datos: { nombre: string; telefono?: string; empresa?: string; ruc?: string; dni?: string }
+): Promise<TiendaAuthSesion> {
+  if (!isConfigured()) throw new Error("La tienda todavía no está conectada al ERP")
+  const res = await erpFetch("/tienda-auth/perfil", {
+    method: "POST",
+    cache: "no-store",
+    headers: { Authorization: `Bearer ${tokenCliente}` },
+    body: JSON.stringify(datos),
+  })
+  return leerRespuestaAuth(res)
+}
+
+export interface PedidoTienda {
+  codigo: string
+  tipo: "COTIZACION" | "CONTRATO"
+  estado: string
+  fecha: string
+  monto: number | string
+}
+
+export async function obtenerPedidosTienda(tokenCliente: string): Promise<{ pedidos: PedidoTienda[]; razonSocial?: string }> {
+  if (!isConfigured()) throw new Error("La tienda todavía no está conectada al ERP")
+  const res = await erpFetch("/tienda-auth/pedidos", { cache: "no-store", headers: { Authorization: `Bearer ${tokenCliente}` } })
+  const body = await res.json().catch(() => null)
+  if (!res.ok || body?.status !== "success") {
+    throw new Error(body?.error?.message || `ERP respondió ${res.status}`)
+  }
+  return body.data
 }
 
 export { isConfigured as erpConfigured, erpImageUrl }

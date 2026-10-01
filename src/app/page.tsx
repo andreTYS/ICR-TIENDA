@@ -1,3 +1,5 @@
+'use client'
+
 import Link from 'next/link'
 import Carousel from '@/components/Carousel'
 import HeroBannerSlide from '@/components/HeroBannerSlide'
@@ -5,6 +7,7 @@ import PromoSlide, { type PromoSlideData } from '@/components/PromoSlide'
 import ProductCard from '@/components/ProductCard'
 import Container from '@/components/Container'
 import { PRODUCTOS } from '@/data/products'
+import { useProducts } from '@/context/ProductsContext'
 import almacen from '@/assets/almacen.jpg'
 import tablero from '@/assets/tablero.jpg'
 
@@ -28,7 +31,11 @@ const OTHER_SLIDES: PromoSlideData[] = [
 ]
 
 export default function Home() {
-  const destacados = PRODUCTOS.filter((p) => p.destacado).slice(0, 3)
+  // Destacados: selección real hecha desde el ERP (Productos → ★), nunca el
+  // mock — con el catálogo de respaldo (ERP no configurado) usa el `destacado`
+  // de ese mock, así la sección nunca sale vacía en desarrollo.
+  const { productos } = useProducts()
+  const destacados = productos.filter((p) => p.destacado).slice(0, 3)
   const masVendidos = [...PRODUCTOS].sort((a, b) => (b.vendidos ?? 0) - (a.vendidos ?? 0)).slice(0, 3)
 
   return (
